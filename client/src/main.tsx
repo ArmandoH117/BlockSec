@@ -13,6 +13,7 @@ import {
 import App from "./App";
 
 import "./styles/global.css";
+import "./styles/operations.css";
 
 createRoot(
   document.getElementById("root")!

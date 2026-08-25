@@ -12,15 +12,23 @@ import {
 export function Sidebar() {
   return (
     <aside className="sidebar">
+
       <div className="brand">
+
         <div className="brand-icon">
           <ShieldCheck size={30} />
         </div>
 
         <div>
-          <strong>BlockSec</strong>
-          <span>Cadena de Custodia</span>
+          <strong>
+            BlockSec
+          </strong>
+
+          <span>
+            Cadena de Custodia
+          </span>
         </div>
+
       </div>
 
       <nav className="sidebar-nav">
@@ -33,8 +41,13 @@ export function Sidebar() {
               : "nav-item"
           }
         >
-          <BriefcaseBusiness size={21} />
-          <span>Casos</span>
+          <BriefcaseBusiness
+            size={21}
+          />
+
+          <span>
+            Casos
+          </span>
         </NavLink>
 
         <NavLink
@@ -46,7 +59,10 @@ export function Sidebar() {
           }
         >
           <Box size={21} />
-          <span>Blockchain</span>
+
+          <span>
+            Blockchain
+          </span>
         </NavLink>
 
         <NavLink
@@ -58,21 +74,14 @@ export function Sidebar() {
           }
         >
           <Globe2 size={21} />
-          <span>Red</span>
+
+          <span>
+            Red
+          </span>
         </NavLink>
 
       </nav>
 
-      <div className="sidebar-user">
-        <div className="user-avatar">
-          A1
-        </div>
-
-        <div>
-          <strong>Analista 1</strong>
-          <span>analista1</span>
-        </div>
-      </div>
     </aside>
   );
 }

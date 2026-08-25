@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState
@@ -62,28 +63,31 @@ export function CasesPage() {
     setModalError
   ] = useState("");
 
-  async function loadCases() {
-    try {
-      setError("");
+  const loadCases =
+    useCallback(
+      async () => {
+        try {
+          const data =
+            await getCases();
 
-      const data =
-        await getCases();
-
-      setCases(data);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No fue posible cargar los casos."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+          setCases(data);
+          setError("");
+        } catch (err) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "No fue posible cargar los casos."
+          );
+        } finally {
+          setLoading(false);
+        }
+      },
+      []
+    );
 
   useEffect(() => {
-    loadCases();
-  }, []);
+    void loadCases();
+  }, [loadCases]);
 
   const filteredCases =
     useMemo(() => {

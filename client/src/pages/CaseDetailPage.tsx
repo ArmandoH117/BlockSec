@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import {
+  useCallback,
   useEffect,
   useState
 } from "react";
@@ -128,32 +129,35 @@ export function CaseDetailPage() {
     setFormError
   ] = useState("");
 
-  async function loadCase() {
-    if (!caseId) {
-      return;
-    }
+  const loadCase =
+    useCallback(
+      async () => {
+        if (!caseId) {
+          return;
+        }
 
-    try {
-      setError("");
+        try {
+          const data =
+            await getCase(caseId);
 
-      const data =
-        await getCase(caseId);
-
-      setCaseDetail(data);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No fue posible cargar el caso."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+          setCaseDetail(data);
+          setError("");
+        } catch (err) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "No fue posible cargar el caso."
+          );
+        } finally {
+          setLoading(false);
+        }
+      },
+      [caseId]
+    );
 
   useEffect(() => {
-    loadCase();
-  }, [caseId]);
+    void loadCase();
+  }, [loadCase]);
 
   async function handleRegisterEvidence() {
     if (
