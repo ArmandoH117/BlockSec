@@ -1,5 +1,6 @@
 import { Blockchain } from "./Blockchain.js";
 import { BlockSecService } from "./BlockSecService.js";
+import { EncryptionService } from "./Encryption.js";
 
 console.log("\n====================================");
 console.log("            BLOCKSEC");
@@ -8,8 +9,14 @@ console.log("====================================\n");
 const blockchain =
   new Blockchain(4, "0");
 
+const encryption =
+  new EncryptionService();
+
 const blockSec =
-  new BlockSecService(blockchain);
+  new BlockSecService(
+    blockchain,
+    encryption
+  );
 
 // =====================================================
 // FASE 1

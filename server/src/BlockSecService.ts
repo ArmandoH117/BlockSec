@@ -1,61 +1,79 @@
 import { Blockchain } from "./Blockchain.js";
 import { CaseFile } from "./Case.js";
+
 import {
   Evidence,
   EvidenceType
 } from "./Evidence.js";
+
 import {
   Transaction,
   TransactionData,
   TransactionType
 } from "./Transaction.js";
 
+import {
+  EncryptedData,
+  EncryptionService
+} from "./Encryption.js";
+
 // =====================================================
-// DATOS DE LAS TRANSACCIONES
+// TIPOS DE DATOS DE LAS TRANSACCIONES
 // =====================================================
 
-interface CaseCreatedData extends TransactionData {
+type CaseCreatedData = TransactionData & {
   caseId: string;
   description: string;
-}
+};
 
-interface EvidenceRegisteredData
-  extends TransactionData {
+type EvidenceRegisteredData = TransactionData & {
   caseId: string;
   evidenceId: string;
   type: EvidenceType;
   description: string;
   serialOrImei: string;
   observations: string;
-  responsible: string;
-}
 
-interface EvidenceTransferredData
-  extends TransactionData {
+  // La identidad se almacena cifrada.
+  responsible: EncryptedData;
+};
+
+type EvidenceTransferredData = TransactionData & {
   caseId: string;
   evidenceId: string;
-  previousResponsible: string;
-  newResponsible: string;
-  observations: string;
-}
 
-interface EvidenceAnalyzedData
-  extends TransactionData {
+  // Ambas identidades quedan cifradas.
+  previousResponsible: EncryptedData;
+  newResponsible: EncryptedData;
+
+  observations: string;
+};
+
+type EvidenceAnalyzedData = TransactionData & {
   caseId: string;
   evidenceId: string;
-  responsible: string;
+
+  // Responsable del análisis cifrado.
+  responsible: EncryptedData;
+
   observations: string;
-}
+};
 
 // =====================================================
-// HISTORIAL
+// HISTORIAL DE EVIDENCIA
 // =====================================================
 
 export interface EvidenceHistoryEntry {
   transactionId: string;
+
   type: TransactionType;
+
   timestamp: number;
 
+  /*
+   * null significa que la transacción todavía
+   * pertenece al bloque candidato.
+   */
   blockIndex: number | null;
 
   confirmed: boolean;
@@ -63,14 +81,24 @@ export interface EvidenceHistoryEntry {
   data: Readonly<TransactionData>;
 }
 
+// =====================================================
+// SERVICIO PRINCIPAL
+// =====================================================
+
 export class BlockSecService {
   private nextCaseNumber: number;
   private nextEvidenceNumber: number;
   private nextTransactionNumber: number;
 
   constructor(
-    private readonly blockchain: Blockchain
+    private readonly blockchain: Blockchain,
+    private readonly encryption: EncryptionService
   ) {
+    /*
+     * Cuando posteriormente carguemos blockchain.json,
+     * estos métodos permitirán continuar los consecutivos
+     * sin repetir identificadores.
+     */
     this.nextCaseNumber =
       this.findHighestNumber("CASE-") + 1;
 
@@ -89,6 +117,7 @@ export class BlockSecService {
     description: string
   ): CaseFile {
     const id = this.generateCaseId();
+
     const createdAt = Date.now();
 
     const caseFile = new CaseFile(
@@ -109,7 +138,9 @@ export class BlockSecService {
       createdAt
     );
 
-    this.blockchain.addTransaction(transaction);
+    this.blockchain.addTransaction(
+      transaction
+    );
 
     return caseFile;
   }
@@ -141,8 +172,11 @@ export class BlockSecService {
       );
     }
 
-    const id = this.generateEvidenceId();
-    const createdAt = Date.now();
+    const id =
+      this.generateEvidenceId();
+
+    const createdAt =
+      Date.now();
 
     const evidence = new Evidence(
       id,
@@ -156,25 +190,47 @@ export class BlockSecService {
 
     this.ensureCandidateBlock();
 
-    const transaction = new Transaction(
-      this.generateTransactionId(),
-      "EVIDENCE_REGISTERED",
-      {
-        caseId: evidence.caseId,
-        evidenceId: evidence.id,
-        type: evidence.type,
-        description: evidence.description,
-        serialOrImei: evidence.serialOrImei,
-        observations: evidence.observations,
+    /*
+     * Ciframos la identidad ANTES de enviar
+     * la información a Blockchain.
+     */
+    const encryptedResponsible =
+      this.encryption.encrypt(
+        responsible.trim()
+      );
 
-        // Posteriormente este valor será cifrado
-        // con AES-256-GCM.
-        responsible: responsible.trim()
-      },
-      createdAt
+    const transaction =
+      new Transaction(
+        this.generateTransactionId(),
+        "EVIDENCE_REGISTERED",
+        {
+          caseId:
+            evidence.caseId,
+
+          evidenceId:
+            evidence.id,
+
+          type:
+            evidence.type,
+
+          description:
+            evidence.description,
+
+          serialOrImei:
+            evidence.serialOrImei,
+
+          observations:
+            evidence.observations,
+
+          responsible:
+            encryptedResponsible
+        },
+        createdAt
+      );
+
+    this.blockchain.addTransaction(
+      transaction
     );
-
-    this.blockchain.addTransaction(transaction);
 
     return evidence;
   }
@@ -188,8 +244,14 @@ export class BlockSecService {
     newResponsible: string,
     observations: string = ""
   ): Transaction {
+    /*
+     * Solo permitimos operar sobre evidencias
+     * que ya hayan sido confirmadas/minadas.
+     */
     const evidence =
-      this.findConfirmedEvidence(evidenceId);
+      this.findConfirmedEvidence(
+        evidenceId
+      );
 
     if (!evidence) {
       throw new Error(
@@ -198,14 +260,19 @@ export class BlockSecService {
       );
     }
 
-    if (!newResponsible.trim()) {
+    const cleanNewResponsible =
+      newResponsible.trim();
+
+    if (!cleanNewResponsible) {
       throw new Error(
         "Debe indicarse el nuevo responsable."
       );
     }
 
     const currentResponsible =
-      this.getCurrentResponsible(evidenceId);
+      this.getCurrentResponsible(
+        evidenceId
+      );
 
     if (!currentResponsible) {
       throw new Error(
@@ -215,7 +282,7 @@ export class BlockSecService {
 
     if (
       currentResponsible.toLowerCase() ===
-      newResponsible.trim().toLowerCase()
+      cleanNewResponsible.toLowerCase()
     ) {
       throw new Error(
         "La evidencia ya se encuentra bajo la custodia de esa persona."
@@ -224,22 +291,45 @@ export class BlockSecService {
 
     this.ensureCandidateBlock();
 
-    const transaction = new Transaction(
-      this.generateTransactionId(),
-      "EVIDENCE_TRANSFERRED",
-      {
-        caseId: evidence.caseId,
-        evidenceId: evidence.id,
-        previousResponsible:
-          currentResponsible,
-        newResponsible:
-          newResponsible.trim(),
-        observations:
-          observations.trim()
-      }
-    );
+    /*
+     * Ninguna identidad se guarda como texto
+     * plano en la Blockchain.
+     */
+    const encryptedPreviousResponsible =
+      this.encryption.encrypt(
+        currentResponsible
+      );
 
-    this.blockchain.addTransaction(transaction);
+    const encryptedNewResponsible =
+      this.encryption.encrypt(
+        cleanNewResponsible
+      );
+
+    const transaction =
+      new Transaction(
+        this.generateTransactionId(),
+        "EVIDENCE_TRANSFERRED",
+        {
+          caseId:
+            evidence.caseId,
+
+          evidenceId:
+            evidence.id,
+
+          previousResponsible:
+            encryptedPreviousResponsible,
+
+          newResponsible:
+            encryptedNewResponsible,
+
+          observations:
+            observations.trim()
+        }
+      );
+
+    this.blockchain.addTransaction(
+      transaction
+    );
 
     return transaction;
   }
@@ -253,7 +343,9 @@ export class BlockSecService {
     observations: string
   ): Transaction {
     const evidence =
-      this.findConfirmedEvidence(evidenceId);
+      this.findConfirmedEvidence(
+        evidenceId
+      );
 
     if (!evidence) {
       throw new Error(
@@ -262,14 +354,23 @@ export class BlockSecService {
       );
     }
 
-    if (!observations.trim()) {
+    const cleanObservations =
+      observations.trim();
+
+    if (!cleanObservations) {
       throw new Error(
         "Debe ingresar una descripción del análisis realizado."
       );
     }
 
+    /*
+     * El analista se obtiene automáticamente
+     * del responsable actual confirmado.
+     */
     const currentResponsible =
-      this.getCurrentResponsible(evidenceId);
+      this.getCurrentResponsible(
+        evidenceId
+      );
 
     if (!currentResponsible) {
       throw new Error(
@@ -279,24 +380,33 @@ export class BlockSecService {
 
     this.ensureCandidateBlock();
 
-    const transaction = new Transaction(
-      this.generateTransactionId(),
-      "EVIDENCE_ANALYZED",
-      {
-        caseId: evidence.caseId,
-        evidenceId: evidence.id,
+    const encryptedResponsible =
+      this.encryption.encrypt(
+        currentResponsible
+      );
 
-        // El análisis se atribuye automáticamente
-        // al custodio actual.
-        responsible:
-          currentResponsible,
+    const transaction =
+      new Transaction(
+        this.generateTransactionId(),
+        "EVIDENCE_ANALYZED",
+        {
+          caseId:
+            evidence.caseId,
 
-        observations:
-          observations.trim()
-      }
+          evidenceId:
+            evidence.id,
+
+          responsible:
+            encryptedResponsible,
+
+          observations:
+            cleanObservations
+        }
+      );
+
+    this.blockchain.addTransaction(
+      transaction
     );
-
-    this.blockchain.addTransaction(transaction);
 
     return transaction;
   }
@@ -309,18 +419,22 @@ export class BlockSecService {
     return this.getAllTransactions()
       .filter(
         (transaction) =>
-          transaction.type === "CASE_CREATED"
+          transaction.type ===
+          "CASE_CREATED"
       )
-      .map((transaction) => {
-        const data =
-          transaction.data as CaseCreatedData;
+      .map(
+        (transaction) => {
+          const data =
+            transaction.data as
+              CaseCreatedData;
 
-        return new CaseFile(
-          data.caseId,
-          data.description,
-          transaction.timestamp
-        );
-      });
+          return new CaseFile(
+            data.caseId,
+            data.description,
+            transaction.timestamp
+          );
+        }
+      );
   }
 
   public findCase(
@@ -345,20 +459,22 @@ export class BlockSecService {
           transaction.type ===
           "EVIDENCE_REGISTERED"
       )
-      .map((transaction) =>
-        this.evidenceFromTransaction(
-          transaction
-        )
+      .map(
+        (transaction) =>
+          this.evidenceFromTransaction(
+            transaction
+          )
       );
   }
 
   public getEvidencesByCase(
     caseId: string
   ): Evidence[] {
-    return this.getEvidences().filter(
-      (evidence) =>
-        evidence.caseId === caseId
-    );
+    return this.getEvidences()
+      .filter(
+        (evidence) =>
+          evidence.caseId === caseId
+      );
   }
 
   public findEvidence(
@@ -373,24 +489,28 @@ export class BlockSecService {
   }
 
   // ===================================================
-  // RESPONSABLE ACTUAL
+  // RESPONSABLE ACTUAL CONFIRMADO
   // ===================================================
 
   public getCurrentResponsible(
     evidenceId: string
   ): string | null {
-    let responsible: string | null = null;
+    let responsible:
+      string | null = null;
 
     /*
      * IMPORTANTE:
      *
-     * Solo utilizamos bloques CONFIRMADOS.
-     * Una transferencia pendiente todavía
-     * no cambia oficialmente la custodia.
+     * Solamente recorremos bloques ya minados.
+     *
+     * Una transferencia que todavía se encuentre
+     * en el bloque candidato NO modifica todavía
+     * la custodia oficialmente confirmada.
      */
 
     for (
-      const block of this.blockchain.blocks
+      const block of
+      this.blockchain.blocks
     ) {
       for (
         const transaction of
@@ -405,6 +525,10 @@ export class BlockSecService {
           continue;
         }
 
+        // ---------------------------------------------
+        // REGISTRO ORIGINAL
+        // ---------------------------------------------
+
         if (
           transaction.type ===
           "EVIDENCE_REGISTERED"
@@ -413,8 +537,15 @@ export class BlockSecService {
             transaction.data as
               EvidenceRegisteredData;
 
-          responsible = data.responsible;
+          responsible =
+            this.encryption.decrypt(
+              data.responsible
+            );
         }
+
+        // ---------------------------------------------
+        // TRANSFERENCIA
+        // ---------------------------------------------
 
         if (
           transaction.type ===
@@ -425,7 +556,9 @@ export class BlockSecService {
               EvidenceTransferredData;
 
           responsible =
-            data.newResponsible;
+            this.encryption.decrypt(
+              data.newResponsible
+            );
         }
       }
     }
@@ -434,7 +567,7 @@ export class BlockSecService {
   }
 
   // ===================================================
-  // HISTORIAL DE EVIDENCIA
+  // HISTORIAL COMPLETO DE EVIDENCIA
   // ===================================================
 
   public getEvidenceHistory(
@@ -443,12 +576,13 @@ export class BlockSecService {
     const history:
       EvidenceHistoryEntry[] = [];
 
-    // -------------------------------
-    // TRANSACCIONES YA MINADAS
-    // -------------------------------
+    // -------------------------------------------------
+    // TRANSACCIONES CONFIRMADAS
+    // -------------------------------------------------
 
     for (
-      const block of this.blockchain.blocks
+      const block of
+      this.blockchain.blocks
     ) {
       for (
         const transaction of
@@ -473,7 +607,8 @@ export class BlockSecService {
             blockIndex:
               block.index,
 
-            confirmed: true,
+            confirmed:
+              true,
 
             data:
               transaction.data
@@ -482,12 +617,13 @@ export class BlockSecService {
       }
     }
 
-    // -------------------------------
-    // TRANSACCIONES PENDIENTES
-    // -------------------------------
+    // -------------------------------------------------
+    // TRANSACCIONES TODAVÍA PENDIENTES
+    // -------------------------------------------------
 
     const candidate =
-      this.blockchain.getCandidateBlock();
+      this.blockchain
+        .getCandidateBlock();
 
     if (candidate) {
       for (
@@ -510,9 +646,11 @@ export class BlockSecService {
             timestamp:
               transaction.timestamp,
 
-            blockIndex: null,
+            blockIndex:
+              null,
 
-            confirmed: false,
+            confirmed:
+              false,
 
             data:
               transaction.data
@@ -523,7 +661,8 @@ export class BlockSecService {
 
     return history.sort(
       (a, b) =>
-        a.timestamp - b.timestamp
+        a.timestamp -
+        b.timestamp
     );
   }
 
@@ -547,7 +686,9 @@ export class BlockSecService {
         confirmedHistory.length - 1
       ];
 
-    return lastEvent?.type ?? null;
+    return (
+      lastEvent?.type ?? null
+    );
   }
 
   // ===================================================
@@ -569,18 +710,24 @@ export class BlockSecService {
 
   private ensureCandidateBlock(): void {
     if (
-      !this.blockchain.getCandidateBlock()
+      !this.blockchain
+        .getCandidateBlock()
     ) {
       this.blockchain
         .createCandidateBlock();
     }
   }
 
+  // ---------------------------------------------------
+  // TODAS LAS TRANSACCIONES
+  // ---------------------------------------------------
+
   private getAllTransactions():
     Transaction[] {
     const transactions:
       Transaction[] = [];
 
+    // Bloques confirmados
     for (
       const block of
       this.blockchain.blocks
@@ -590,18 +737,24 @@ export class BlockSecService {
       );
     }
 
+    // Bloque candidato
     const candidate =
       this.blockchain
         .getCandidateBlock();
 
     if (candidate) {
       transactions.push(
-        ...candidate.getTransactions()
+        ...candidate
+          .getTransactions()
       );
     }
 
     return transactions;
   }
+
+  // ---------------------------------------------------
+  // SOLO TRANSACCIONES CONFIRMADAS
+  // ---------------------------------------------------
 
   private getConfirmedTransactions():
     Transaction[] {
@@ -619,6 +772,10 @@ export class BlockSecService {
 
     return transactions;
   }
+
+  // ---------------------------------------------------
+  // BUSCAR EVIDENCIA YA MINADA
+  // ---------------------------------------------------
 
   private findConfirmedEvidence(
     evidenceId: string
@@ -654,6 +811,10 @@ export class BlockSecService {
     );
   }
 
+  // ---------------------------------------------------
+  // CONSTRUIR OBJETO EVIDENCE DESDE BLOCKCHAIN
+  // ---------------------------------------------------
+
   private evidenceFromTransaction(
     transaction: Transaction
   ): Evidence {
@@ -672,6 +833,10 @@ export class BlockSecService {
     );
   }
 
+  // ---------------------------------------------------
+  // COMPROBAR SI TX PERTENECE A EVIDENCIA
+  // ---------------------------------------------------
+
   private transactionBelongsToEvidence(
     transaction: Transaction,
     evidenceId: string
@@ -684,6 +849,10 @@ export class BlockSecService {
       value === evidenceId
     );
   }
+
+  // ---------------------------------------------------
+  // GENERACIÓN AUTOMÁTICA DE IDs
+  // ---------------------------------------------------
 
   private generateCaseId(): string {
     const id =
@@ -718,6 +887,10 @@ export class BlockSecService {
     return id;
   }
 
+  // ---------------------------------------------------
+  // ENCONTRAR MAYOR CONSECUTIVO EXISTENTE
+  // ---------------------------------------------------
+
   private findHighestNumber(
     prefix: string
   ): number {
@@ -734,7 +907,14 @@ export class BlockSecService {
         )
       ];
 
-      for (const value of values) {
+      for (
+        const value of values
+      ) {
+        /*
+         * Los objetos EncryptedData llegarán aquí,
+         * pero simplemente se ignoran porque no son
+         * strings.
+         */
         if (
           typeof value !== "string"
         ) {
@@ -742,16 +922,19 @@ export class BlockSecService {
         }
 
         if (
-          !value.startsWith(prefix)
+          !value.startsWith(
+            prefix
+          )
         ) {
           continue;
         }
 
-        const number = Number(
-          value.substring(
-            prefix.length
-          )
-        );
+        const number =
+          Number(
+            value.substring(
+              prefix.length
+            )
+          );
 
         if (
           Number.isInteger(number) &&
