@@ -5,76 +5,25 @@ console.log("\n====================================");
 console.log("            BLOCKSEC");
 console.log("====================================\n");
 
-// -------------------------------------
-// CREAR BLOCKCHAIN
-// -------------------------------------
-
-const blockchain = new Blockchain(4, "0");
+const blockchain =
+  new Blockchain(4, "0");
 
 const blockSec =
   new BlockSecService(blockchain);
 
-console.log("Blockchain creada.");
+// =====================================================
+// FASE 1
+// CASO + EVIDENCIAS
+// =====================================================
+
 console.log(
-  `Dificultad: ${blockchain.difficulty}`
-);
-console.log(
-  `Carácter: ${blockchain.mineChar}`
-);
-console.log(
-  `Objetivo: ${blockchain.target}`
+  "--- FASE 1: CASO Y EVIDENCIAS ---\n"
 );
 
-// -------------------------------------
-// MOSTRAR GÉNESIS
-// -------------------------------------
-
-const genesis = blockchain.blocks[0];
-
-if (!genesis) {
-  throw new Error(
-    "No se pudo crear el Génesis."
+const case1 =
+  blockSec.createCase(
+    "Investigación de acceso no autorizado."
   );
-}
-
-console.log("\n--- BLOQUE GÉNESIS ---");
-
-console.log(`Índice: ${genesis.index}`);
-console.log(`Nonce: ${genesis.nonce}`);
-console.log(`Hash: ${genesis.hash}`);
-console.log(
-  `Previous Hash: ${genesis.previousHash}`
-);
-
-// -------------------------------------
-// CREAR CASOS
-// -------------------------------------
-
-console.log("\n--- CREANDO CASOS ---");
-
-const case1 = blockSec.createCase(
-  "Investigación de acceso no autorizado."
-);
-
-console.log(
-  `${case1.id} creado correctamente.`
-);
-
-const case2 = blockSec.createCase(
-  "Investigación por equipo extraviado."
-);
-
-console.log(
-  `${case2.id} creado correctamente.`
-);
-
-// -------------------------------------
-// REGISTRAR EVIDENCIAS
-// -------------------------------------
-
-console.log(
-  "\n--- REGISTRANDO EVIDENCIAS ---"
-);
 
 const evidence1 =
   blockSec.registerEvidence(
@@ -82,13 +31,8 @@ const evidence1 =
     "DISPOSITIVO_MOVIL",
     "iPhone 13 azul",
     "Salvador",
-    "359403450123456",
-    "Pantalla con fisura en esquina superior."
+    "359403450123456"
   );
-
-console.log(
-  `${evidence1.id} → ${evidence1.caseId}`
-);
 
 const evidence2 =
   blockSec.registerEvidence(
@@ -100,134 +44,244 @@ const evidence2 =
   );
 
 console.log(
-  `${evidence2.id} → ${evidence2.caseId}`
-);
-
-const evidence3 =
-  blockSec.registerEvidence(
-    case2.id,
-    "EQUIPO_COMPUTO",
-    "Laptop HP EliteBook",
-    "Carlos",
-    "HP-98AZ12"
-  );
-
-console.log(
-  `${evidence3.id} → ${evidence3.caseId}`
-);
-
-// -------------------------------------
-// MOSTRAR BLOQUE CANDIDATO
-// -------------------------------------
-
-console.log(
-  "\n--- BLOQUE CANDIDATO ---"
-);
-
-const candidate =
-  blockchain.getCandidateBlock();
-
-if (!candidate) {
-  throw new Error(
-    "No existe bloque candidato."
-  );
-}
-
-console.log(
-  `Bloque: #${candidate.index}`
+  `Caso creado: ${case1.id}`
 );
 
 console.log(
-  `Transacciones pendientes: ${candidate.transactionCount}`
+  `${evidence1.id} → ${case1.id}`
+);
+
+console.log(
+  `${evidence2.id} → ${case1.id}`
+);
+
+console.log(
+  "\nTransacciones pendientes:"
 );
 
 for (
   const transaction of
-  candidate.getTransactions()
+  blockSec.getPendingTransactions()
 ) {
   console.log(
     `${transaction.id} | ${transaction.type}`
   );
 }
 
-// -------------------------------------
-// MOSTRAR RELACIÓN CASOS → EVIDENCIAS
-// -------------------------------------
+// =====================================================
+// MINAR BLOQUE #1
+// =====================================================
 
 console.log(
-  "\n--- CASOS Y EVIDENCIAS ---"
+  "\nMinando bloque #1..."
 );
 
-for (const caseFile of blockSec.getCases()) {
-  console.log(
-    `\n${caseFile.id} - ${caseFile.description}`
-  );
-
-  const evidences =
-    blockSec.getEvidencesByCase(
-      caseFile.id
-    );
-
-  for (const evidence of evidences) {
-    console.log(
-      `  └─ ${evidence.id} | ${evidence.description}`
-    );
-  }
-}
-
-// -------------------------------------
-// MINAR
-// -------------------------------------
-
-console.log("\nMinando bloque...");
-
-const result =
+const result1 =
   blockchain.mineCandidateBlock();
-
-console.log(
-  "\n--- BLOQUE MINADO ---"
-);
-
-console.log(
-  `Bloque: #${result.block.index}`
-);
-
-console.log(
-  `Transacciones: ${result.block.transactionCount}`
-);
-
-console.log(
-  `Nonce: ${result.block.nonce}`
-);
-
-console.log(
-  `Hash: ${result.block.hash}`
-);
-
-console.log(
-  `Previous Hash: ${result.block.previousHash}`
-);
-
-console.log(
-  `Intentos: ${result.attempts}`
-);
-
-console.log(
-  `Tiempo: ${result.durationMs} ms`
-);
-
-// -------------------------------------
-// AGREGAR A BLOCKCHAIN
-// -------------------------------------
 
 blockchain.addCandidateBlock();
 
 console.log(
-  "\nBloque agregado correctamente."
+  `Bloque #${result1.block.index} minado.`
 );
 
 console.log(
-  `Bloques totales: ${blockchain.blocks.length}`
+  `Hash: ${result1.block.hash}`
+);
+
+console.log(
+  `Blockchain válida: ${
+    blockchain.isValid()
+      ? "SÍ"
+      : "NO"
+  }`
+);
+
+// =====================================================
+// VERIFICAR RESPONSABLE
+// =====================================================
+
+console.log(
+  "\n--- CUSTODIA CONFIRMADA ---"
+);
+
+console.log(
+  `${evidence1.id}: ${
+    blockSec.getCurrentResponsible(
+      evidence1.id
+    )
+  }`
+);
+
+// =====================================================
+// FASE 2
+// TRANSFERENCIA
+// =====================================================
+
+console.log(
+  "\n--- TRANSFERENCIA ---"
+);
+
+blockSec.transferEvidence(
+  evidence1.id,
+  "Carlos",
+  "Entregada para análisis forense."
+);
+
+console.log(
+  "Transferencia agregada al bloque candidato."
+);
+
+console.log(
+  "\nResponsable confirmado ANTES de minar:"
+);
+
+console.log(
+  blockSec.getCurrentResponsible(
+    evidence1.id
+  )
+);
+
+// =====================================================
+// MOSTRAR HISTORIAL CON PENDIENTE
+// =====================================================
+
+console.log(
+  "\nHistorial antes del minado:"
+);
+
+for (
+  const event of
+  blockSec.getEvidenceHistory(
+    evidence1.id
+  )
+) {
+  console.log(
+    `${event.transactionId} | ` +
+    `${event.type} | ` +
+    `${
+      event.confirmed
+        ? `BLOCK #${event.blockIndex}`
+        : "PENDIENTE"
+    }`
+  );
+}
+
+// =====================================================
+// MINAR BLOQUE #2
+// =====================================================
+
+console.log(
+  "\nMinando bloque #2..."
+);
+
+const result2 =
+  blockchain.mineCandidateBlock();
+
+blockchain.addCandidateBlock();
+
+console.log(
+  `Bloque #${result2.block.index} minado.`
+);
+
+// =====================================================
+// RESPONSABLE DESPUÉS DE MINAR
+// =====================================================
+
+console.log(
+  "\nResponsable confirmado DESPUÉS de minar:"
+);
+
+console.log(
+  blockSec.getCurrentResponsible(
+    evidence1.id
+  )
+);
+
+// =====================================================
+// FASE 3
+// ANÁLISIS
+// =====================================================
+
+console.log(
+  "\n--- REGISTRAR ANÁLISIS ---"
+);
+
+blockSec.analyzeEvidence(
+  evidence1.id,
+  "Se realizó revisión del dispositivo y extracción de información relevante."
+);
+
+console.log(
+  "Análisis agregado al bloque candidato."
+);
+
+// =====================================================
+// MINAR BLOQUE #3
+// =====================================================
+
+console.log(
+  "\nMinando bloque #3..."
+);
+
+const result3 =
+  blockchain.mineCandidateBlock();
+
+blockchain.addCandidateBlock();
+
+console.log(
+  `Bloque #${result3.block.index} minado.`
+);
+
+// =====================================================
+// HISTORIAL FINAL
+// =====================================================
+
+console.log(
+  "\n--- HISTORIAL FINAL ---"
+);
+
+for (
+  const event of
+  blockSec.getEvidenceHistory(
+    evidence1.id
+  )
+) {
+  console.log(
+    `${event.transactionId} | ` +
+    `${event.type} | ` +
+    `BLOCK #${event.blockIndex}`
+  );
+}
+
+// =====================================================
+// RESULTADO
+// =====================================================
+
+console.log(
+  "\n--- RESULTADO FINAL ---"
+);
+
+console.log(
+  `Responsable actual: ${
+    blockSec.getCurrentResponsible(
+      evidence1.id
+    )
+  }`
+);
+
+console.log(
+  `Último evento: ${
+    blockSec.getLastConfirmedEvent(
+      evidence1.id
+    )
+  }`
+);
+
+console.log(
+  `Bloques totales: ${
+    blockchain.blocks.length
+  }`
 );
 
 console.log(

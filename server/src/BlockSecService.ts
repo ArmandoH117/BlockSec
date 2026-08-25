@@ -6,8 +6,13 @@ import {
 } from "./Evidence.js";
 import {
   Transaction,
-  TransactionData
+  TransactionData,
+  TransactionType
 } from "./Transaction.js";
+
+// =====================================================
+// DATOS DE LAS TRANSACCIONES
+// =====================================================
 
 interface CaseCreatedData extends TransactionData {
   caseId: string;
@@ -23,6 +28,39 @@ interface EvidenceRegisteredData
   serialOrImei: string;
   observations: string;
   responsible: string;
+}
+
+interface EvidenceTransferredData
+  extends TransactionData {
+  caseId: string;
+  evidenceId: string;
+  previousResponsible: string;
+  newResponsible: string;
+  observations: string;
+}
+
+interface EvidenceAnalyzedData
+  extends TransactionData {
+  caseId: string;
+  evidenceId: string;
+  responsible: string;
+  observations: string;
+}
+
+// =====================================================
+// HISTORIAL
+// =====================================================
+
+export interface EvidenceHistoryEntry {
+  transactionId: string;
+  type: TransactionType;
+  timestamp: number;
+
+  blockIndex: number | null;
+
+  confirmed: boolean;
+
+  data: Readonly<TransactionData>;
 }
 
 export class BlockSecService {
@@ -43,11 +81,13 @@ export class BlockSecService {
       this.findHighestNumber("TX-") + 1;
   }
 
-  // -------------------------------------
+  // ===================================================
   // CREAR CASO
-  // -------------------------------------
+  // ===================================================
 
-  public createCase(description: string): CaseFile {
+  public createCase(
+    description: string
+  ): CaseFile {
     const id = this.generateCaseId();
     const createdAt = Date.now();
 
@@ -74,9 +114,9 @@ export class BlockSecService {
     return caseFile;
   }
 
-  // -------------------------------------
+  // ===================================================
   // REGISTRAR EVIDENCIA
-  // -------------------------------------
+  // ===================================================
 
   public registerEvidence(
     caseId: string,
@@ -127,8 +167,8 @@ export class BlockSecService {
         serialOrImei: evidence.serialOrImei,
         observations: evidence.observations,
 
-        // Más adelante este valor será cifrado
-        // mediante AES-256-GCM.
+        // Posteriormente este valor será cifrado
+        // con AES-256-GCM.
         responsible: responsible.trim()
       },
       createdAt
@@ -139,9 +179,131 @@ export class BlockSecService {
     return evidence;
   }
 
-  // -------------------------------------
+  // ===================================================
+  // TRANSFERIR EVIDENCIA
+  // ===================================================
+
+  public transferEvidence(
+    evidenceId: string,
+    newResponsible: string,
+    observations: string = ""
+  ): Transaction {
+    const evidence =
+      this.findConfirmedEvidence(evidenceId);
+
+    if (!evidence) {
+      throw new Error(
+        `La evidencia ${evidenceId} no existe ` +
+        "o todavía no ha sido minada."
+      );
+    }
+
+    if (!newResponsible.trim()) {
+      throw new Error(
+        "Debe indicarse el nuevo responsable."
+      );
+    }
+
+    const currentResponsible =
+      this.getCurrentResponsible(evidenceId);
+
+    if (!currentResponsible) {
+      throw new Error(
+        `No fue posible determinar el responsable actual de ${evidenceId}.`
+      );
+    }
+
+    if (
+      currentResponsible.toLowerCase() ===
+      newResponsible.trim().toLowerCase()
+    ) {
+      throw new Error(
+        "La evidencia ya se encuentra bajo la custodia de esa persona."
+      );
+    }
+
+    this.ensureCandidateBlock();
+
+    const transaction = new Transaction(
+      this.generateTransactionId(),
+      "EVIDENCE_TRANSFERRED",
+      {
+        caseId: evidence.caseId,
+        evidenceId: evidence.id,
+        previousResponsible:
+          currentResponsible,
+        newResponsible:
+          newResponsible.trim(),
+        observations:
+          observations.trim()
+      }
+    );
+
+    this.blockchain.addTransaction(transaction);
+
+    return transaction;
+  }
+
+  // ===================================================
+  // REGISTRAR ANÁLISIS
+  // ===================================================
+
+  public analyzeEvidence(
+    evidenceId: string,
+    observations: string
+  ): Transaction {
+    const evidence =
+      this.findConfirmedEvidence(evidenceId);
+
+    if (!evidence) {
+      throw new Error(
+        `La evidencia ${evidenceId} no existe ` +
+        "o todavía no ha sido minada."
+      );
+    }
+
+    if (!observations.trim()) {
+      throw new Error(
+        "Debe ingresar una descripción del análisis realizado."
+      );
+    }
+
+    const currentResponsible =
+      this.getCurrentResponsible(evidenceId);
+
+    if (!currentResponsible) {
+      throw new Error(
+        `No fue posible determinar el responsable actual de ${evidenceId}.`
+      );
+    }
+
+    this.ensureCandidateBlock();
+
+    const transaction = new Transaction(
+      this.generateTransactionId(),
+      "EVIDENCE_ANALYZED",
+      {
+        caseId: evidence.caseId,
+        evidenceId: evidence.id,
+
+        // El análisis se atribuye automáticamente
+        // al custodio actual.
+        responsible:
+          currentResponsible,
+
+        observations:
+          observations.trim()
+      }
+    );
+
+    this.blockchain.addTransaction(transaction);
+
+    return transaction;
+  }
+
+  // ===================================================
   // CONSULTAR CASOS
-  // -------------------------------------
+  // ===================================================
 
   public getCases(): CaseFile[] {
     return this.getAllTransactions()
@@ -166,14 +328,15 @@ export class BlockSecService {
   ): CaseFile | null {
     return (
       this.getCases().find(
-        (caseFile) => caseFile.id === caseId
+        (caseFile) =>
+          caseFile.id === caseId
       ) ?? null
     );
   }
 
-  // -------------------------------------
+  // ===================================================
   // CONSULTAR EVIDENCIAS
-  // -------------------------------------
+  // ===================================================
 
   public getEvidences(): Evidence[] {
     return this.getAllTransactions()
@@ -182,27 +345,19 @@ export class BlockSecService {
           transaction.type ===
           "EVIDENCE_REGISTERED"
       )
-      .map((transaction) => {
-        const data =
-          transaction.data as EvidenceRegisteredData;
-
-        return new Evidence(
-          data.evidenceId,
-          data.caseId,
-          data.type,
-          data.description,
-          data.serialOrImei,
-          data.observations,
-          transaction.timestamp
-        );
-      });
+      .map((transaction) =>
+        this.evidenceFromTransaction(
+          transaction
+        )
+      );
   }
 
   public getEvidencesByCase(
     caseId: string
   ): Evidence[] {
     return this.getEvidences().filter(
-      (evidence) => evidence.caseId === caseId
+      (evidence) =>
+        evidence.caseId === caseId
     );
   }
 
@@ -217,9 +372,187 @@ export class BlockSecService {
     );
   }
 
-  // -------------------------------------
+  // ===================================================
+  // RESPONSABLE ACTUAL
+  // ===================================================
+
+  public getCurrentResponsible(
+    evidenceId: string
+  ): string | null {
+    let responsible: string | null = null;
+
+    /*
+     * IMPORTANTE:
+     *
+     * Solo utilizamos bloques CONFIRMADOS.
+     * Una transferencia pendiente todavía
+     * no cambia oficialmente la custodia.
+     */
+
+    for (
+      const block of this.blockchain.blocks
+    ) {
+      for (
+        const transaction of
+        block.getTransactions()
+      ) {
+        if (
+          !this.transactionBelongsToEvidence(
+            transaction,
+            evidenceId
+          )
+        ) {
+          continue;
+        }
+
+        if (
+          transaction.type ===
+          "EVIDENCE_REGISTERED"
+        ) {
+          const data =
+            transaction.data as
+              EvidenceRegisteredData;
+
+          responsible = data.responsible;
+        }
+
+        if (
+          transaction.type ===
+          "EVIDENCE_TRANSFERRED"
+        ) {
+          const data =
+            transaction.data as
+              EvidenceTransferredData;
+
+          responsible =
+            data.newResponsible;
+        }
+      }
+    }
+
+    return responsible;
+  }
+
+  // ===================================================
+  // HISTORIAL DE EVIDENCIA
+  // ===================================================
+
+  public getEvidenceHistory(
+    evidenceId: string
+  ): EvidenceHistoryEntry[] {
+    const history:
+      EvidenceHistoryEntry[] = [];
+
+    // -------------------------------
+    // TRANSACCIONES YA MINADAS
+    // -------------------------------
+
+    for (
+      const block of this.blockchain.blocks
+    ) {
+      for (
+        const transaction of
+        block.getTransactions()
+      ) {
+        if (
+          this.transactionBelongsToEvidence(
+            transaction,
+            evidenceId
+          )
+        ) {
+          history.push({
+            transactionId:
+              transaction.id,
+
+            type:
+              transaction.type,
+
+            timestamp:
+              transaction.timestamp,
+
+            blockIndex:
+              block.index,
+
+            confirmed: true,
+
+            data:
+              transaction.data
+          });
+        }
+      }
+    }
+
+    // -------------------------------
+    // TRANSACCIONES PENDIENTES
+    // -------------------------------
+
+    const candidate =
+      this.blockchain.getCandidateBlock();
+
+    if (candidate) {
+      for (
+        const transaction of
+        candidate.getTransactions()
+      ) {
+        if (
+          this.transactionBelongsToEvidence(
+            transaction,
+            evidenceId
+          )
+        ) {
+          history.push({
+            transactionId:
+              transaction.id,
+
+            type:
+              transaction.type,
+
+            timestamp:
+              transaction.timestamp,
+
+            blockIndex: null,
+
+            confirmed: false,
+
+            data:
+              transaction.data
+          });
+        }
+      }
+    }
+
+    return history.sort(
+      (a, b) =>
+        a.timestamp - b.timestamp
+    );
+  }
+
+  // ===================================================
+  // ÚLTIMO EVENTO CONFIRMADO
+  // ===================================================
+
+  public getLastConfirmedEvent(
+    evidenceId: string
+  ): TransactionType | null {
+    const confirmedHistory =
+      this.getEvidenceHistory(
+        evidenceId
+      ).filter(
+        (event) =>
+          event.confirmed
+      );
+
+    const lastEvent =
+      confirmedHistory[
+        confirmedHistory.length - 1
+      ];
+
+    return lastEvent?.type ?? null;
+  }
+
+  // ===================================================
   // TRANSACCIONES PENDIENTES
-  // -------------------------------------
+  // ===================================================
 
   public getPendingTransactions():
     readonly Transaction[] {
@@ -230,22 +563,27 @@ export class BlockSecService {
     );
   }
 
-  // -------------------------------------
+  // ===================================================
   // MÉTODOS PRIVADOS
-  // -------------------------------------
+  // ===================================================
 
   private ensureCandidateBlock(): void {
-    if (!this.blockchain.getCandidateBlock()) {
-      this.blockchain.createCandidateBlock();
+    if (
+      !this.blockchain.getCandidateBlock()
+    ) {
+      this.blockchain
+        .createCandidateBlock();
     }
   }
 
   private getAllTransactions():
     Transaction[] {
-    const transactions: Transaction[] = [];
+    const transactions:
+      Transaction[] = [];
 
     for (
-      const block of this.blockchain.blocks
+      const block of
+      this.blockchain.blocks
     ) {
       transactions.push(
         ...block.getTransactions()
@@ -253,7 +591,8 @@ export class BlockSecService {
     }
 
     const candidate =
-      this.blockchain.getCandidateBlock();
+      this.blockchain
+        .getCandidateBlock();
 
     if (candidate) {
       transactions.push(
@@ -262,6 +601,88 @@ export class BlockSecService {
     }
 
     return transactions;
+  }
+
+  private getConfirmedTransactions():
+    Transaction[] {
+    const transactions:
+      Transaction[] = [];
+
+    for (
+      const block of
+      this.blockchain.blocks
+    ) {
+      transactions.push(
+        ...block.getTransactions()
+      );
+    }
+
+    return transactions;
+  }
+
+  private findConfirmedEvidence(
+    evidenceId: string
+  ): Evidence | null {
+    const transaction =
+      this.getConfirmedTransactions()
+        .find(
+          (transaction) => {
+            if (
+              transaction.type !==
+              "EVIDENCE_REGISTERED"
+            ) {
+              return false;
+            }
+
+            const data =
+              transaction.data as
+                EvidenceRegisteredData;
+
+            return (
+              data.evidenceId ===
+              evidenceId
+            );
+          }
+        );
+
+    if (!transaction) {
+      return null;
+    }
+
+    return this.evidenceFromTransaction(
+      transaction
+    );
+  }
+
+  private evidenceFromTransaction(
+    transaction: Transaction
+  ): Evidence {
+    const data =
+      transaction.data as
+        EvidenceRegisteredData;
+
+    return new Evidence(
+      data.evidenceId,
+      data.caseId,
+      data.type,
+      data.description,
+      data.serialOrImei,
+      data.observations,
+      transaction.timestamp
+    );
+  }
+
+  private transactionBelongsToEvidence(
+    transaction: Transaction,
+    evidenceId: string
+  ): boolean {
+    const value =
+      transaction.data.evidenceId;
+
+    return (
+      typeof value === "string" &&
+      value === evidenceId
+    );
   }
 
   private generateCaseId(): string {
@@ -308,20 +729,28 @@ export class BlockSecService {
     ) {
       const values = [
         transaction.id,
-        ...Object.values(transaction.data)
+        ...Object.values(
+          transaction.data
+        )
       ];
 
       for (const value of values) {
-        if (typeof value !== "string") {
+        if (
+          typeof value !== "string"
+        ) {
           continue;
         }
 
-        if (!value.startsWith(prefix)) {
+        if (
+          !value.startsWith(prefix)
+        ) {
           continue;
         }
 
         const number = Number(
-          value.substring(prefix.length)
+          value.substring(
+            prefix.length
+          )
         );
 
         if (
