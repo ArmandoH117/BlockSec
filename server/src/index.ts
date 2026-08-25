@@ -19,17 +19,60 @@ import {
 } from "./Encryption.js";
 
 import {
+  NetworkService
+} from "./NetworkService.js";
+
+import {
   createApi
 } from "./api.js";
 
 // =====================================================
-// CONFIGURACIÓN DEL NODO
+// ARGUMENTOS
 // =====================================================
 
-const PORT = 3001;
+function getArgument(
+  name: string
+): string | undefined {
+  const prefix =
+    `--${name}=`;
+
+  const argument =
+    process.argv.find(
+      (value) =>
+        value.startsWith(prefix)
+    );
+
+  return argument
+    ?.substring(prefix.length);
+}
+
+const PORT =
+  Number(
+    getArgument("port") ??
+      "3001"
+  );
 
 const NODE_NAME =
-  "NODE-1";
+  getArgument("name") ??
+  `NODE-${PORT}`;
+
+const BOOTSTRAP_URL =
+  "http://localhost:3001";
+
+const NODE_URL =
+  `http://localhost:${PORT}`;
+
+const ALL_NODES = [
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "http://localhost:3003"
+];
+
+const PEERS =
+  ALL_NODES.filter(
+    (url) =>
+      url !== NODE_URL
+  );
 
 const DATA_FILE =
   resolve(
@@ -46,39 +89,70 @@ const storage =
     DATA_FILE
   );
 
-// =====================================================
-// CARGAR BLOCKCHAIN
-// =====================================================
-
 let blockchain =
   await storage.load();
 
+// =====================================================
+// CREACIÓN / BOOTSTRAP
+// =====================================================
+
 if (!blockchain) {
-  console.log(
-    "No existe una Blockchain almacenada."
-  );
-
-  console.log(
-    "Creando Blockchain y minando Génesis..."
-  );
-
-  blockchain =
-    new Blockchain(
-      4,
-      "0"
+  /*
+   * Solo NODE-1 crea un Génesis.
+   */
+  if (PORT === 3001) {
+    console.log(
+      "Creando Blockchain principal..."
     );
 
-  await storage.save(
-    blockchain
-  );
+    blockchain =
+      new Blockchain(
+        4,
+        "0"
+      );
 
-  console.log(
-    "Bloque Génesis creado y guardado."
-  );
-} else {
-  console.log(
-    "Blockchain cargada desde almacenamiento."
-  );
+    await storage.save(
+      blockchain
+    );
+  }
+
+  /*
+   * Los demás nodos obtienen el Génesis
+   * y la cadena desde NODE-1.
+   */
+  else {
+    console.log(
+      `${NODE_NAME}: obteniendo Blockchain desde NODE-1...`
+    );
+
+    const response =
+      await fetch(
+        `${BOOTSTRAP_URL}/api/network/chain`
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        "NODE-1 debe estar iniciado antes de arrancar los nodos secundarios."
+      );
+    }
+
+    const body =
+      await response.json() as {
+        blockchain:
+          ReturnType<
+            Blockchain["toObject"]
+          >;
+      };
+
+    blockchain =
+      Blockchain.fromObject(
+        body.blockchain
+      );
+
+    await storage.save(
+      blockchain
+    );
+  }
 }
 
 // =====================================================
@@ -99,6 +173,17 @@ const blockSec =
   );
 
 // =====================================================
+// NETWORK
+// =====================================================
+
+const network =
+  new NetworkService(
+    blockchain,
+    NODE_URL,
+    PEERS
+  );
+
+// =====================================================
 // API
 // =====================================================
 
@@ -106,11 +191,14 @@ const app =
   createApi(
     blockchain,
     blockSec,
-    storage
+    storage,
+    network,
+    NODE_NAME,
+    NODE_URL
   );
 
 // =====================================================
-// INICIAR SERVIDOR
+// INICIAR
 // =====================================================
 
 app.listen(
@@ -121,7 +209,7 @@ app.listen(
     );
 
     console.log(
-      `          BLOCKSEC ${NODE_NAME}`
+      `       BLOCKSEC ${NODE_NAME}`
     );
 
     console.log(
@@ -129,23 +217,15 @@ app.listen(
     );
 
     console.log(
-      `Servidor: http://localhost:${PORT}`
-    );
-
-    console.log(
-      `Dificultad: ${blockchain.difficulty}`
-    );
-
-    console.log(
-      `Carácter: ${blockchain.mineChar}`
-    );
-
-    console.log(
-      `Objetivo: ${blockchain.target}`
+      `URL: ${NODE_URL}`
     );
 
     console.log(
       `Bloques: ${blockchain.blocks.length}`
+    );
+
+    console.log(
+      `Último hash: ${blockchain.lastBlock.hash}`
     );
 
     console.log(
@@ -155,6 +235,16 @@ app.listen(
           : "NO"
       }`
     );
+
+    console.log(
+      "Peers:"
+    );
+
+    for (const peer of PEERS) {
+      console.log(
+        `- ${peer}`
+      );
+    }
 
     console.log(
       "====================================\n"

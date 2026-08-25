@@ -27,6 +27,57 @@ const GENESIS_PREVIOUS_HASH =
   "0".repeat(64);
 
 export class Blockchain {
+    // =============================================
+// ADOPTAR CADENA DE OTRO NODO
+// =============================================
+
+public adoptChain(
+  data: BlockchainObject
+): void {
+  const incoming =
+    Blockchain.fromObject(data);
+
+  if (
+    incoming.difficulty !==
+      this.difficulty ||
+    incoming.mineChar !==
+      this.mineChar
+  ) {
+    throw new Error(
+      "La Blockchain remota utiliza una configuración de minado diferente."
+    );
+  }
+
+  if (
+    incoming.blocks.length <=
+    this.chain.length
+  ) {
+    throw new Error(
+      "La Blockchain remota no es más larga que la cadena local."
+    );
+  }
+
+  /*
+   * No queremos destruir operaciones locales
+   * todavía pendientes.
+   */
+  if (
+    this.candidateBlock &&
+    this.candidateBlock.transactionCount > 0
+  ) {
+    throw new Error(
+      "No se puede sincronizar mientras existan transacciones locales pendientes."
+    );
+  }
+
+  this.chain.splice(
+    0,
+    this.chain.length,
+    ...incoming.blocks
+  );
+
+  this.candidateBlock = null;
+}
   private readonly chain:
     Block[] = [];
 

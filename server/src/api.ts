@@ -10,6 +10,9 @@ import { Blockchain } from "./Blockchain.js";
 import { BlockchainStorage } from "./BlockchainStorage.js";
 import { BlockSecService } from "./BlockSecService.js";
 import { EvidenceType } from "./Evidence.js";
+import { NetworkService } from "./NetworkService.js";
+import { BlockObject } from "./Block.js";
+
 
 // =====================================================
 // TIPOS
@@ -44,7 +47,10 @@ interface AnalyzeEvidenceBody {
 export function createApi(
   blockchain: Blockchain,
   blockSec: BlockSecService,
-  storage: BlockchainStorage
+  storage: BlockchainStorage,
+  network: NetworkService,
+  nodeName: string,
+  nodeUrl: string
 ) {
   const app = express();
 
@@ -62,15 +68,16 @@ export function createApi(
   // ===================================================
 
   app.get(
-    "/api/health",
-    (_request: Request, response: Response) => {
-      response.json({
-        status: "ok",
-        service: "BlockSec",
-        node: "NODE-1"
-      });
-    }
-  );
+  "/api/health",
+  (_request: Request, response: Response) => {
+    response.json({
+      status: "ok",
+      service: "BlockSec",
+      node: nodeName,
+      url: nodeUrl
+    });
+  }
+);
 
   // ===================================================
   // CASOS
@@ -639,6 +646,11 @@ export function createApi(
           blockchain
         );
 
+        const peerResults =
+        await network.broadcastBlock(
+            block
+        );
+
         response.status(201).json({
           message:
             "Bloque minado y agregado correctamente.",
@@ -675,6 +687,11 @@ export function createApi(
 
             target:
               blockchain.target
+          },
+
+          network: {
+            peers: 
+                peerResults
           },
 
           blockchainValid:
@@ -740,6 +757,151 @@ export function createApi(
       });
     }
   );
+
+
+  // ===================================================
+// ESTADO DEL NODO
+// ===================================================
+
+app.get(
+  "/api/network/status",
+  (_request: Request, response: Response) => {
+    response.json({
+      node: nodeName,
+      url: nodeUrl,
+
+      valid:
+        blockchain.isValid(),
+
+      blocks:
+        blockchain.blocks.length,
+
+      lastBlock: {
+        index:
+          blockchain.lastBlock.index,
+
+        hash:
+          blockchain.lastBlock.hash
+      },
+
+      pendingTransactions:
+        blockSec
+          .getPendingTransactions()
+          .length
+    });
+  }
+);
+
+// ===================================================
+// COMPARTIR CADENA CONFIRMADA
+// ===================================================
+
+app.get(
+  "/api/network/chain",
+  (_request: Request, response: Response) => {
+    const data =
+      blockchain.toObject();
+
+    /*
+     * Las transacciones pendientes no forman
+     * parte todavía de la Blockchain confirmada.
+     */
+    data.candidateBlock = null;
+
+    response.json({
+      node: nodeName,
+      blockchain: data
+    });
+  }
+);
+
+// ===================================================
+// RECIBIR BLOQUE DE OTRO NODO
+// ===================================================
+
+app.post(
+  "/api/network/block",
+  async (
+    request: Request<
+      Record<string, never>,
+      unknown,
+      {
+        sourceNode?: string;
+        block?: BlockObject;
+      }
+    >,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      if (!request.body?.block) {
+        response.status(400).json({
+          message:
+            "No se recibió ningún bloque."
+        });
+
+        return;
+      }
+
+      const block =
+        network.receiveBlock(
+          request.body.block
+        );
+
+      await storage.save(
+        blockchain
+      );
+
+      console.log(
+        `${nodeName}: BLOCK #${block.index} recibido y validado.`
+      );
+
+      response.status(201).json({
+        message:
+          `BLOCK #${block.index} aceptado por ${nodeName}.`
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ===================================================
+// SINCRONIZAR MANUALMENTE
+// ===================================================
+
+app.post(
+  "/api/network/sync",
+  async (
+    _request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const message =
+        await network.synchronize();
+
+      await storage.save(
+        blockchain
+      );
+
+      response.json({
+        message,
+
+        blocks:
+          blockchain.blocks.length,
+
+        lastHash:
+          blockchain.lastBlock.hash,
+
+        valid:
+          blockchain.isValid()
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
   // ===================================================
   // ERROR HANDLER
