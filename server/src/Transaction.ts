@@ -8,6 +8,13 @@ export type TransactionType =
 export type TransactionData =
   Record<string, unknown>;
 
+export interface TransactionObject {
+  id: string;
+  type: TransactionType;
+  data: TransactionData;
+  timestamp: number;
+}
+
 function deepFreeze<T>(
   value: T
 ): Readonly<T> {
@@ -37,8 +44,10 @@ function deepFreeze<T>(
 export class Transaction {
   public readonly id: string;
   public readonly type: TransactionType;
+
   public readonly data:
     Readonly<TransactionData>;
+
   public readonly timestamp: number;
 
   constructor(
@@ -62,17 +71,33 @@ export class Transaction {
     this.data =
       deepFreeze(dataCopy);
 
-    this.timestamp = timestamp;
+    this.timestamp =
+      timestamp;
 
     Object.freeze(this);
   }
 
-  public toObject() {
+  public toObject(): TransactionObject {
     return {
       id: this.id,
       type: this.type,
-      data: this.data,
-      timestamp: this.timestamp
+      data:
+        structuredClone(
+          this.data
+        ) as TransactionData,
+      timestamp:
+        this.timestamp
     };
+  }
+
+  public static fromObject(
+    data: TransactionObject
+  ): Transaction {
+    return new Transaction(
+      data.id,
+      data.type,
+      data.data,
+      data.timestamp
+    );
   }
 }
