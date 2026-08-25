@@ -18,39 +18,40 @@ import {
   EncryptionService
 } from "./Encryption.js";
 
-console.log(
-  "\n===================================="
-);
+import {
+  createApi
+} from "./api.js";
 
-console.log(
-  "       BLOCKSEC - PERSISTENCIA"
-);
+// =====================================================
+// CONFIGURACIÓN DEL NODO
+// =====================================================
 
-console.log(
-  "====================================\n"
-);
+const PORT = 3001;
 
-// ===============================================
+const NODE_NAME =
+  "NODE-1";
+
+const DATA_FILE =
+  resolve(
+    process.cwd(),
+    `../data/blockchain-${PORT}.json`
+  );
+
+// =====================================================
 // STORAGE
-// ===============================================
+// =====================================================
 
 const storage =
   new BlockchainStorage(
-    resolve(
-      process.cwd(),
-      "../data/blockchain.json"
-    )
+    DATA_FILE
   );
 
-// ===============================================
-// INTENTAR CARGAR
-// ===============================================
+// =====================================================
+// CARGAR BLOCKCHAIN
+// =====================================================
 
 let blockchain =
   await storage.load();
-
-const firstExecution =
-  blockchain === null;
 
 if (!blockchain) {
   console.log(
@@ -58,7 +59,7 @@ if (!blockchain) {
   );
 
   console.log(
-    "Creando una nueva Blockchain...\n"
+    "Creando Blockchain y minando Génesis..."
   );
 
   blockchain =
@@ -66,30 +67,30 @@ if (!blockchain) {
       4,
       "0"
     );
+
+  await storage.save(
+    blockchain
+  );
+
+  console.log(
+    "Bloque Génesis creado y guardado."
+  );
 } else {
   console.log(
-    "Blockchain cargada desde blockchain.json."
-  );
-
-  console.log(
-    `Bloques cargados: ${blockchain.blocks.length}`
-  );
-
-  console.log(
-    `Blockchain válida: ${
-      blockchain.isValid()
-        ? "SÍ"
-        : "NO"
-    }\n`
+    "Blockchain cargada desde almacenamiento."
   );
 }
 
-// ===============================================
-// SERVICIOS
-// ===============================================
+// =====================================================
+// SEGURIDAD
+// =====================================================
 
 const encryption =
   new EncryptionService();
+
+// =====================================================
+// SERVICIO BLOCKSEC
+// =====================================================
 
 const blockSec =
   new BlockSecService(
@@ -97,113 +98,66 @@ const blockSec =
     encryption
   );
 
-// ===============================================
-// PRIMERA EJECUCIÓN
-// ===============================================
+// =====================================================
+// API
+// =====================================================
 
-if (firstExecution) {
-  console.log(
-    "--- CREANDO INFORMACIÓN INICIAL ---"
+const app =
+  createApi(
+    blockchain,
+    blockSec,
+    storage
   );
 
-  const case1 =
-    blockSec.createCase(
-      "Prueba de persistencia BlockSec."
+// =====================================================
+// INICIAR SERVIDOR
+// =====================================================
+
+app.listen(
+  PORT,
+  () => {
+    console.log(
+      "\n===================================="
     );
 
-  console.log(
-    `Caso generado: ${case1.id}`
-  );
-
-  const evidence =
-    blockSec.registerEvidence(
-      case1.id,
-      "DISPOSITIVO_MOVIL",
-      "iPhone 13 azul",
-      "Salvador",
-      "359403450123456"
+    console.log(
+      `          BLOCKSEC ${NODE_NAME}`
     );
 
-  console.log(
-    `Evidencia generada: ${evidence.id}`
-  );
-
-  console.log(
-    "\nMinando bloque..."
-  );
-
-  const result =
-    blockchain
-      .mineCandidateBlock();
-
-  blockchain
-    .addCandidateBlock();
-
-  console.log(
-    `Bloque #${result.block.index} minado.`
-  );
-
-  console.log(
-    `Hash: ${result.block.hash}`
-  );
-
-  await storage.save(
-    blockchain
-  );
-
-  console.log(
-    "\nBlockchain guardada en blockchain.json."
-  );
-
-  console.log(
-    "\nCIERRA Y EJECUTA npm start NUEVAMENTE."
-  );
-}
-
-// ===============================================
-// SEGUNDA EJECUCIÓN
-// ===============================================
-
-else {
-  console.log(
-    "--- COMPROBANDO CONTINUIDAD DE IDs ---"
-  );
-
-  const newCase =
-    blockSec.createCase(
-      "Segundo caso después de reiniciar."
+    console.log(
+      "===================================="
     );
 
-  console.log(
-    `Nuevo caso generado: ${newCase.id}`
-  );
+    console.log(
+      `Servidor: http://localhost:${PORT}`
+    );
 
-  console.log(
-    "\nDebería ser CASE-0002."
-  );
+    console.log(
+      `Dificultad: ${blockchain.difficulty}`
+    );
 
-  console.log(
-    `Transacciones pendientes: ${
-      blockSec
-        .getPendingTransactions()
-        .length
-    }`
-  );
+    console.log(
+      `Carácter: ${blockchain.mineChar}`
+    );
 
-  /*
-   * Guardamos también el bloque candidato
-   * para verificar que las transacciones
-   * pendientes sobreviven al reinicio.
-   */
-  await storage.save(
-    blockchain
-  );
+    console.log(
+      `Objetivo: ${blockchain.target}`
+    );
 
-  console.log(
-    "\nBloque candidato guardado correctamente."
-  );
-}
+    console.log(
+      `Bloques: ${blockchain.blocks.length}`
+    );
 
-console.log(
-  "\n====================================\n"
+    console.log(
+      `Blockchain válida: ${
+        blockchain.isValid()
+          ? "SÍ"
+          : "NO"
+      }`
+    );
+
+    console.log(
+      "====================================\n"
+    );
+  }
 );
