@@ -25,9 +25,9 @@ export class NetworkService {
     private readonly peers: string[]
   ) {}
 
-  // =============================================
-  // BROADCAST DE BLOQUE MINADO
-  // =============================================
+  // =====================================================
+  // BROADCAST
+  // =====================================================
 
   public async broadcastBlock(
     block: Block
@@ -64,7 +64,9 @@ export class NetworkService {
 
         results.push({
           peer,
-          success: response.ok,
+          success:
+            response.ok,
+
           message:
             body.message ??
             response.statusText
@@ -82,24 +84,27 @@ export class NetworkService {
     return results;
   }
 
-  // =============================================
-  // RECIBIR Y VALIDAR BLOQUE
-  // =============================================
+  // =====================================================
+  // RECIBIR BLOQUE DIRECTAMENTE
+  // =====================================================
 
   public receiveBlock(
     blockData: BlockObject
   ): Block {
     const block =
-      Block.fromObject(blockData);
+      Block.fromObject(
+        blockData
+      );
 
     /*
-     * addBlock() ya comprueba:
+     * Blockchain.addBlock()
+     * comprueba:
      *
-     * - bloque minado
+     * - Proof of Work
      * - índice
      * - previousHash
-     * - hash recalculado
-     * - Proof of Work
+     * - hash
+     * - posición en la cadena
      */
     this.blockchain.addBlock(
       block
@@ -108,9 +113,9 @@ export class NetworkService {
     return block;
   }
 
-  // =============================================
-  // DESCARGAR BLOCKCHAIN DE OTRO NODO
-  // =============================================
+  // =====================================================
+  // OBTENER CADENA REMOTA
+  // =====================================================
 
   public async fetchChain(
     peer: string
@@ -133,9 +138,101 @@ export class NetworkService {
     return body.blockchain;
   }
 
-  // =============================================
-  // SINCRONIZAR
-  // =============================================
+  // =====================================================
+  // SINCRONIZAR DESDE UN NODO ESPECÍFICO
+  // =====================================================
+
+  public async synchronizeFrom(
+    peer: string
+  ): Promise<string> {
+    const remoteData =
+      await this.fetchChain(
+        peer
+      );
+
+    /*
+     * Antes de confiar en la cadena
+     * la reconstruimos y validamos.
+     */
+    const remoteBlockchain =
+      Blockchain.fromObject(
+        remoteData
+      );
+
+    if (
+      remoteBlockchain.difficulty !==
+        this.blockchain.difficulty ||
+      remoteBlockchain.mineChar !==
+        this.blockchain.mineChar
+    ) {
+      throw new Error(
+        "La Blockchain remota utiliza una configuración de minado diferente."
+      );
+    }
+
+    const remoteLength =
+      remoteBlockchain.blocks.length;
+
+    const localLength =
+      this.blockchain.blocks.length;
+
+    // -------------------------------------------------
+    // CADENA REMOTA MÁS CORTA
+    // -------------------------------------------------
+
+    if (
+      remoteLength <
+      localLength
+    ) {
+      return (
+        "La cadena local ya es más extensa " +
+        `que la cadena de ${peer}.`
+      );
+    }
+
+    // -------------------------------------------------
+    // MISMA LONGITUD
+    // -------------------------------------------------
+
+    if (
+      remoteLength ===
+      localLength
+    ) {
+      if (
+        remoteBlockchain
+          .lastBlock
+          .hash ===
+        this.blockchain
+          .lastBlock
+          .hash
+      ) {
+        return (
+          `El nodo ya está sincronizado con ${peer}.`
+        );
+      }
+
+      throw new Error(
+        "Las cadenas tienen la misma longitud " +
+        "pero poseen diferentes hashes finales."
+      );
+    }
+
+    // -------------------------------------------------
+    // CADENA REMOTA MÁS LARGA
+    // -------------------------------------------------
+
+    this.blockchain.adoptChain(
+      remoteData
+    );
+
+    return (
+      `Blockchain sincronizada desde ${peer}.`
+    );
+  }
+
+  // =====================================================
+  // SINCRONIZACIÓN GENERAL
+  // =====================================================
 
   public async synchronize():
     Promise<string> {
@@ -145,22 +242,25 @@ export class NetworkService {
     let selectedPeer:
       string | null = null;
 
-    for (const peer of this.peers) {
+    for (
+      const peer of
+      this.peers
+    ) {
       try {
         const chain =
           await this.fetchChain(
             peer
           );
 
-        /*
-         * Validamos la información remota
-         * antes siquiera de considerarla.
-         */
         const validated =
           Blockchain.fromObject(
             chain
           );
 
+        /*
+         * Solo aceptamos nodos con
+         * la misma configuración.
+         */
         if (
           validated.difficulty !==
             this.blockchain.difficulty ||
@@ -170,6 +270,10 @@ export class NetworkService {
           continue;
         }
 
+        /*
+         * Elegimos la Blockchain
+         * válida más extensa.
+         */
         if (
           !selectedChain ||
           chain.chain.length >
@@ -183,27 +287,82 @@ export class NetworkService {
         }
       } catch {
         /*
-         * Un nodo desconectado o inválido
-         * simplemente no participa.
+         * Un nodo apagado, corrupto o
+         * incompatible no participa.
          */
       }
     }
 
-    if (!selectedChain) {
+    if (
+      !selectedChain ||
+      !selectedPeer
+    ) {
       throw new Error(
         "No fue posible obtener una Blockchain válida desde los otros nodos."
       );
     }
 
+    const selectedBlockchain =
+      Blockchain.fromObject(
+        selectedChain
+      );
+
+    const remoteLength =
+      selectedBlockchain
+        .blocks.length;
+
+    const localLength =
+      this.blockchain
+        .blocks.length;
+
+    // -------------------------------------------------
+    // MISMA CADENA
+    // -------------------------------------------------
+
     if (
-      selectedChain.chain.length <=
-      this.blockchain.blocks.length
+      remoteLength ===
+        localLength &&
+      selectedBlockchain
+        .lastBlock
+        .hash ===
+      this.blockchain
+        .lastBlock
+        .hash
     ) {
       return (
-        "El nodo ya posee una Blockchain " +
-        "igual o más extensa."
+        "El nodo ya posee la Blockchain actual."
       );
     }
+
+    // -------------------------------------------------
+    // LOCAL MÁS EXTENSA
+    // -------------------------------------------------
+
+    if (
+      remoteLength <
+      localLength
+    ) {
+      return (
+        "La cadena local ya es más extensa que las cadenas remotas disponibles."
+      );
+    }
+
+    // -------------------------------------------------
+    // MISMA LONGITUD PERO DIFERENTE
+    // -------------------------------------------------
+
+    if (
+      remoteLength ===
+      localLength
+    ) {
+      throw new Error(
+        "Se detectaron cadenas distintas con la misma longitud."
+      );
+    }
+
+    // -------------------------------------------------
+    // ADOPTAR CADENA MÁS LARGA
+    // -------------------------------------------------
 
     this.blockchain.adoptChain(
       selectedChain

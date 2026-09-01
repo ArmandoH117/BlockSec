@@ -54,7 +54,7 @@ export interface RegisterEvidenceResponse {
 }
 
 // =====================================================
-// HISTORIAL / EVIDENCIA
+// HISTORIAL
 // =====================================================
 
 export interface EvidenceHistoryEntry {
@@ -68,9 +68,14 @@ export interface EvidenceHistoryEntry {
 
 export interface EvidenceDetail
   extends EvidenceItem {
-  currentResponsible: string | null;
-  lastConfirmedEvent: string | null;
-  history: EvidenceHistoryEntry[];
+  currentResponsible:
+    string | null;
+
+  lastConfirmedEvent:
+    string | null;
+
+  history:
+    EvidenceHistoryEntry[];
 }
 
 export interface ActionResponse {
@@ -165,8 +170,15 @@ export interface NodeStatus {
   pendingTransactions: number;
 }
 
+export interface SyncResponse {
+  message: string;
+  blocks: number;
+  lastHash: string;
+  valid: boolean;
+}
+
 // =====================================================
-// REQUEST GENÉRICO
+// REQUEST
 // =====================================================
 
 async function apiRequest<T>(
@@ -174,15 +186,29 @@ async function apiRequest<T>(
   options?: RequestInit
 ): Promise<T> {
   const response =
-    await fetch(url, options);
+    await fetch(
+      url,
+      options
+    );
 
-  const data =
-    await response.json();
+  let data:
+    Record<string, unknown>;
+
+  try {
+    data =
+      await response.json();
+  } catch {
+    throw new Error(
+      "El servidor devolvió una respuesta inválida."
+    );
+  }
 
   if (!response.ok) {
     throw new Error(
-      data.message ??
-        "Ocurrió un error al comunicarse con BlockSec."
+      typeof data.message ===
+        "string"
+        ? data.message
+        : "Ocurrió un error al comunicarse con BlockSec."
     );
   }
 
@@ -195,7 +221,9 @@ async function apiRequest<T>(
 
 export async function getCases():
   Promise<CaseItem[]> {
-  return apiRequest<CaseItem[]>(
+  return apiRequest<
+    CaseItem[]
+  >(
     `${PRIMARY_NODE}/api/cases`
   );
 }
@@ -203,7 +231,9 @@ export async function getCases():
 export async function getCase(
   caseId: string
 ): Promise<CaseDetail> {
-  return apiRequest<CaseDetail>(
+  return apiRequest<
+    CaseDetail
+  >(
     `${PRIMARY_NODE}/api/cases/${caseId}`
   );
 }
@@ -211,7 +241,9 @@ export async function getCase(
 export async function createCase(
   description: string
 ): Promise<CreateCaseResponse> {
-  return apiRequest<CreateCaseResponse>(
+  return apiRequest<
+    CreateCaseResponse
+  >(
     `${PRIMARY_NODE}/api/cases`,
     {
       method: "POST",
@@ -221,9 +253,10 @@ export async function createCase(
           "application/json"
       },
 
-      body: JSON.stringify({
-        description
-      })
+      body:
+        JSON.stringify({
+          description
+        })
     }
   );
 }
@@ -242,7 +275,9 @@ export async function registerEvidence(
     observations?: string;
   }
 ): Promise<RegisterEvidenceResponse> {
-  return apiRequest<RegisterEvidenceResponse>(
+  return apiRequest<
+    RegisterEvidenceResponse
+  >(
     `${PRIMARY_NODE}/api/evidences`,
     {
       method: "POST",
@@ -252,7 +287,10 @@ export async function registerEvidence(
           "application/json"
       },
 
-      body: JSON.stringify(data)
+      body:
+        JSON.stringify(
+          data
+        )
     }
   );
 }
@@ -260,7 +298,9 @@ export async function registerEvidence(
 export async function getEvidence(
   evidenceId: string
 ): Promise<EvidenceDetail> {
-  return apiRequest<EvidenceDetail>(
+  return apiRequest<
+    EvidenceDetail
+  >(
     `${PRIMARY_NODE}/api/evidences/${evidenceId}`
   );
 }
@@ -270,7 +310,9 @@ export async function transferEvidence(
   newResponsible: string,
   observations: string
 ): Promise<ActionResponse> {
-  return apiRequest<ActionResponse>(
+  return apiRequest<
+    ActionResponse
+  >(
     `${PRIMARY_NODE}/api/evidences/${evidenceId}/transfer`,
     {
       method: "POST",
@@ -280,10 +322,11 @@ export async function transferEvidence(
           "application/json"
       },
 
-      body: JSON.stringify({
-        newResponsible,
-        observations
-      })
+      body:
+        JSON.stringify({
+          newResponsible,
+          observations
+        })
     }
   );
 }
@@ -292,7 +335,9 @@ export async function analyzeEvidence(
   evidenceId: string,
   observations: string
 ): Promise<ActionResponse> {
-  return apiRequest<ActionResponse>(
+  return apiRequest<
+    ActionResponse
+  >(
     `${PRIMARY_NODE}/api/evidences/${evidenceId}/analyze`,
     {
       method: "POST",
@@ -302,9 +347,10 @@ export async function analyzeEvidence(
           "application/json"
       },
 
-      body: JSON.stringify({
-        observations
-      })
+      body:
+        JSON.stringify({
+          observations
+        })
     }
   );
 }
@@ -315,24 +361,31 @@ export async function analyzeEvidence(
 
 export async function getCandidateBlock():
   Promise<CandidateBlockResponse> {
-  return apiRequest<CandidateBlockResponse>(
+  return apiRequest<
+    CandidateBlockResponse
+  >(
     `${PRIMARY_NODE}/api/blockchain/candidate`
   );
 }
 
 export async function getBlockchain():
   Promise<BlockchainResponse> {
-  return apiRequest<BlockchainResponse>(
+  return apiRequest<
+    BlockchainResponse
+  >(
     `${PRIMARY_NODE}/api/blockchain`
   );
 }
 
 export async function mineCandidateBlock():
   Promise<MineResponse> {
-  return apiRequest<MineResponse>(
+  return apiRequest<
+    MineResponse
+  >(
     `${PRIMARY_NODE}/api/blockchain/mine`,
     {
-      method: "POST"
+      method:
+        "POST"
     }
   );
 }
@@ -344,7 +397,23 @@ export async function mineCandidateBlock():
 export async function getNodeStatus(
   nodeUrl: string
 ): Promise<NodeStatus> {
-  return apiRequest<NodeStatus>(
+  return apiRequest<
+    NodeStatus
+  >(
     `${nodeUrl}/api/network/status`
+  );
+}
+
+export async function synchronizeNode(
+  nodeUrl: string
+): Promise<SyncResponse> {
+  return apiRequest<
+    SyncResponse
+  >(
+    `${nodeUrl}/api/network/sync`,
+    {
+      method:
+        "POST"
+    }
   );
 }

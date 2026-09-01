@@ -1,6 +1,7 @@
 import {
   CheckCircle2,
   Globe2,
+  RefreshCcw,
   RefreshCw,
   Server,
   TriangleAlert,
@@ -15,7 +16,8 @@ import {
 
 import {
   getNodeStatus,
-  NODE_URLS
+  NODE_URLS,
+  synchronizeNode
 } from "../api/blocksecApi";
 
 import type {
@@ -34,12 +36,26 @@ export function NetworkPage() {
   const [
     nodes,
     setNodes
-  ] = useState<NodeView[]>([]);
+  ] =
+    useState<NodeView[]>([]);
 
   const [
     loading,
     setLoading
-  ] = useState(true);
+  ] =
+    useState(true);
+
+  const [
+    synchronizing,
+    setSynchronizing
+  ] =
+    useState(false);
+
+  const [
+    syncMessage,
+    setSyncMessage
+  ] =
+    useState("");
 
   const loadNodes =
     useCallback(
@@ -57,22 +73,34 @@ export function NetworkPage() {
                     );
 
                   return {
-                    url: nodeUrl,
-                    online: true,
+                    url:
+                      nodeUrl,
+
+                    online:
+                      true,
+
                     status
                   };
                 } catch {
                   return {
-                    url: nodeUrl,
-                    online: false
+                    url:
+                      nodeUrl,
+
+                    online:
+                      false
                   };
                 }
               }
             )
           );
 
-        setNodes(results);
-        setLoading(false);
+        setNodes(
+          results
+        );
+
+        setLoading(
+          false
+        );
       },
       []
     );
@@ -100,22 +128,120 @@ export function NetworkPage() {
         node.online
     );
 
-  const synchronized =
-    onlineNodes.length > 0 &&
+  const allOnline =
     onlineNodes.length ===
-      NODE_URLS.length &&
+    NODE_URLS.length;
+
+  const sameHash =
+    onlineNodes.length > 0 &&
     onlineNodes.every(
       (node) =>
-        node.status?.lastBlock.hash ===
+        node.status
+          ?.lastBlock
+          .hash ===
         onlineNodes[0]
           ?.status
-          ?.lastBlock.hash
+          ?.lastBlock
+          .hash
     );
+
+  const sameBlockCount =
+    onlineNodes.length > 0 &&
+    onlineNodes.every(
+      (node) =>
+        node.status
+          ?.blocks ===
+        onlineNodes[0]
+          ?.status
+          ?.blocks
+    );
+
+  const synchronized =
+    allOnline &&
+    sameHash &&
+    sameBlockCount;
+
+  async function handleSynchronizeNetwork() {
+    if (
+      synchronizing
+    ) {
+      return;
+    }
+
+    setSynchronizing(
+      true
+    );
+
+    setSyncMessage(
+      ""
+    );
+
+    try {
+      const onlineUrls =
+        nodes
+          .filter(
+            (node) =>
+              node.online
+          )
+          .map(
+            (node) =>
+              node.url
+          );
+
+      if (
+        onlineUrls.length <
+        2
+      ) {
+        setSyncMessage(
+          "No hay suficientes nodos disponibles para realizar la sincronización."
+        );
+
+        return;
+      }
+
+      const results =
+        await Promise
+          .allSettled(
+            onlineUrls.map(
+              (nodeUrl) =>
+                synchronizeNode(
+                  nodeUrl
+                )
+            )
+          );
+
+      const successful =
+        results.filter(
+          (result) =>
+            result.status ===
+            "fulfilled"
+        ).length;
+
+      await loadNodes();
+
+      setSyncMessage(
+        `Sincronización procesada en ${successful} de ${onlineUrls.length} nodo(s) disponibles.`
+      );
+    } catch (
+      error
+    ) {
+      setSyncMessage(
+        error instanceof Error
+          ? error.message
+          : "No fue posible sincronizar la red."
+      );
+    } finally {
+      setSynchronizing(
+        false
+      );
+    }
+  }
 
   return (
     <section className="page network-page">
 
       <header className="page-header">
+
         <div>
           <h1>
             Red
@@ -127,15 +253,41 @@ export function NetworkPage() {
           </p>
         </div>
 
-        <button
-          className="secondary-action"
-          onClick={() =>
-            void loadNodes()
-          }
-        >
-          <RefreshCw size={18} />
-          Actualizar
-        </button>
+        <div className="network-header-actions">
+
+          <button
+            className="secondary-action"
+            onClick={() =>
+              void loadNodes()
+            }
+          >
+            <RefreshCw
+              size={18}
+            />
+
+            Actualizar
+          </button>
+
+          <button
+            className="primary-button"
+            disabled={
+              synchronizing
+            }
+            onClick={
+              handleSynchronizeNetwork
+            }
+          >
+            <RefreshCcw
+              size={18}
+            />
+
+            {synchronizing
+              ? "Sincronizando..."
+              : "Sincronizar red"}
+          </button>
+
+        </div>
+
       </header>
 
       <div
@@ -170,11 +322,34 @@ export function NetworkPage() {
             {NODE_URLS.length}
             {" "}nodos disponibles
           </span>
+
+          {!synchronized &&
+            allOnline && (
+            <small>
+              Todos los nodos están conectados,
+              pero sus copias de Blockchain
+              todavía no coinciden.
+            </small>
+          )}
         </div>
+
       </div>
 
+      {syncMessage && (
+        <div className="sync-feedback">
+          <RefreshCcw
+            size={18}
+          />
+
+          <span>
+            {syncMessage}
+          </span>
+        </div>
+      )}
+
       {loading &&
-        nodes.length === 0 && (
+        nodes.length ===
+          0 && (
         <div className="empty-state">
           Consultando nodos...
         </div>
@@ -185,7 +360,9 @@ export function NetworkPage() {
         {nodes.map(
           (node) => (
             <article
-              key={node.url}
+              key={
+                node.url
+              }
               className={
                 node.online
                   ? "node-card online"
@@ -202,16 +379,21 @@ export function NetworkPage() {
                 </div>
 
                 <div className="node-identity">
+
                   <strong>
-                    {node.status?.node ??
+                    {node.status
+                      ?.node ??
                       "Nodo desconectado"}
                   </strong>
 
                   <span
-                    title={node.url}
+                    title={
+                      node.url
+                    }
                   >
                     {node.url}
                   </span>
+
                 </div>
 
                 {node.online
@@ -317,7 +499,9 @@ export function NetworkPage() {
 
       <div className="network-diagram">
 
-        <Globe2 size={28} />
+        <Globe2
+          size={28}
+        />
 
         <div>
           <strong>

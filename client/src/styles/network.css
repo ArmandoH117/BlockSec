@@ -4,28 +4,36 @@
 
 .network-page {
   width: 100%;
-
-  /*
-   * Muy importante:
-   * permite que los elementos Grid
-   * reduzcan correctamente su tamaño.
-   */
   min-width: 0;
 }
 
 /* =========================================
-   RESUMEN DE RED
+   HEADER
 ========================================= */
 
-.network-page .network-summary {
-  width: 100%;
-
+.network-header-actions {
   display: flex;
   align-items: center;
 
+  gap: 12px;
+
+  flex-wrap: wrap;
+}
+
+/* =========================================
+   RESUMEN
+========================================= */
+
+.network-page
+.network-summary {
+  width: 100%;
+
+  display: flex;
+  align-items: flex-start;
+
   gap: 14px;
 
-  margin-bottom: 28px;
+  margin-bottom: 20px;
   padding: 18px 20px;
 
   border-radius: 11px;
@@ -35,24 +43,46 @@
 .network-summary.synchronized {
   border:
     1px solid
-    rgba(37, 208, 232, 0.27);
+    rgba(
+      37,
+      208,
+      232,
+      0.27
+    );
 
   background:
-    rgba(37, 208, 232, 0.06);
+    rgba(
+      37,
+      208,
+      232,
+      0.06
+    );
 
-  color: var(--cyan);
+  color:
+    var(--cyan);
 }
 
 .network-page
 .network-summary.warning {
   border:
     1px solid
-    rgba(217, 164, 65, 0.27);
+    rgba(
+      217,
+      164,
+      65,
+      0.27
+    );
 
   background:
-    rgba(217, 164, 65, 0.06);
+    rgba(
+      217,
+      164,
+      65,
+      0.06
+    );
 
-  color: #d9a441;
+  color:
+    #d9a441;
 }
 
 .network-page
@@ -62,30 +92,80 @@
   display: flex;
   flex-direction: column;
 
-  gap: 3px;
+  gap: 4px;
 }
 
 .network-page
 .network-summary span {
-  color: var(--muted);
+  color:
+    var(--muted);
+}
+
+.network-page
+.network-summary small {
+  margin-top: 3px;
+
+  color:
+    #9aa6b5;
+
+  line-height: 1.4;
 }
 
 /* =========================================
-   GRID DE NODOS
+   FEEDBACK
 ========================================= */
 
-.network-page .nodes-grid {
+.sync-feedback {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 20px;
+  padding: 13px 16px;
+
+  border:
+    1px solid
+    rgba(
+      37,
+      208,
+      232,
+      0.22
+    );
+
+  border-radius:
+    9px;
+
+  background:
+    rgba(
+      37,
+      208,
+      232,
+      0.05
+    );
+
+  color:
+    var(--cyan);
+}
+
+.sync-feedback span {
+  color:
+    #b8c5d3;
+
+  font-size:
+    13px;
+}
+
+/* =========================================
+   GRID
+========================================= */
+
+.network-page
+.nodes-grid {
   width: 100%;
 
   display: grid;
 
-  /*
-   * La clave del arreglo.
-   *
-   * minmax(0, 1fr) permite que cada
-   * columna se reduzca sin que un hash
-   * largo empuje el Grid hacia la derecha.
-   */
   grid-template-columns:
     repeat(
       3,
@@ -94,10 +174,6 @@
 
   gap: 16px;
 
-  /*
-   * Impide que el Grid cree
-   * desbordamiento horizontal.
-   */
   min-width: 0;
 }
 
@@ -105,20 +181,23 @@
    TARJETAS
 ========================================= */
 
-.network-page .node-card {
+.network-page
+.node-card {
   width: 100%;
-
-  /*
-   * Crítico dentro de CSS Grid.
-   */
   min-width: 0;
 
   padding: 22px;
 
-  border-radius: 12px;
+  border-radius:
+    12px;
 
   background:
-    rgba(7, 21, 35, 0.72);
+    rgba(
+      7,
+      21,
+      35,
+      0.72
+    );
 
   overflow: hidden;
 }
@@ -127,16 +206,27 @@
 .node-card.online {
   border:
     1px solid
-    rgba(37, 208, 232, 0.24);
+    rgba(
+      37,
+      208,
+      232,
+      0.24
+    );
 }
 
 .network-page
 .node-card.offline {
   border:
     1px solid
-    rgba(120, 132, 148, 0.2);
+    rgba(
+      120,
+      132,
+      148,
+      0.2
+    );
 
-  opacity: 0.68;
+  opacity:
+    0.68;
 }
 
 /* =========================================
@@ -151,10 +241,14 @@
 
   grid-template-columns:
     44px
-    minmax(0, 1fr)
+    minmax(
+      0,
+      1fr
+    )
     24px;
 
-  align-items: center;
+  align-items:
+    center;
 
   gap: 12px;
 
@@ -167,16 +261,22 @@
   height: 42px;
 
   display: grid;
-  place-items: center;
+  place-items:
+    center;
 
-  flex-shrink: 0;
-
-  border-radius: 9px;
+  border-radius:
+    9px;
 
   background:
-    rgba(37, 208, 232, 0.08);
+    rgba(
+      37,
+      208,
+      232,
+      0.08
+    );
 
-  color: var(--cyan);
+  color:
+    var(--cyan);
 }
 
 .network-page
@@ -184,45 +284,59 @@
   min-width: 0;
 
   display: flex;
-  flex-direction: column;
+  flex-direction:
+    column;
 
   gap: 3px;
 }
 
 .network-page
 .node-identity strong {
-  overflow: hidden;
+  overflow:
+    hidden;
 
-  color: var(--text);
+  color:
+    var(--text);
 
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
 }
 
 .network-page
 .node-identity span {
   min-width: 0;
 
-  overflow: hidden;
+  overflow:
+    hidden;
 
-  color: var(--muted);
+  color:
+    var(--muted);
 
-  font-size: 12px;
+  font-size:
+    12px;
 
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
 }
 
 .network-page
 .node-card.online
 .node-status-icon {
-  color: var(--cyan);
+  color:
+    var(--cyan);
 }
 
 .network-page
 .node-card.offline
 .node-status-icon {
-  color: #7e8996;
+  color:
+    #7e8996;
 }
 
 /* =========================================
@@ -238,12 +352,16 @@
   grid-template-columns:
     repeat(
       3,
-      minmax(0, 1fr)
+      minmax(
+        0,
+        1fr
+      )
     );
 
   gap: 10px;
 
-  margin-top: 22px;
+  margin-top:
+    22px;
 
   min-width: 0;
 }
@@ -255,40 +373,59 @@
   padding: 11px;
 
   border:
-    1px solid var(--border);
+    1px solid
+    var(--border);
 
-  border-radius: 8px;
+  border-radius:
+    8px;
 
   background:
-    rgba(3, 16, 29, 0.7);
+    rgba(
+      3,
+      16,
+      29,
+      0.7
+    );
 }
 
 .network-page
 .node-stats span {
   display: block;
 
-  margin-bottom: 5px;
+  margin-bottom:
+    5px;
 
-  overflow: hidden;
+  overflow:
+    hidden;
 
-  color: var(--muted);
+  color:
+    var(--muted);
 
-  font-size: 10px;
+  font-size:
+    10px;
 
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
 }
 
 .network-page
 .node-stats strong {
   display: block;
 
-  overflow: hidden;
+  overflow:
+    hidden;
 
-  font-size: 16px;
+  font-size:
+    16px;
 
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
 }
 
 /* =========================================
@@ -300,26 +437,34 @@
   width: 100%;
   min-width: 0;
 
-  margin-top: 14px;
+  margin-top:
+    14px;
+
   padding: 12px;
 
   border:
-    1px solid var(--border);
+    1px solid
+    var(--border);
 
-  border-radius: 8px;
+  border-radius:
+    8px;
 
-  overflow: hidden;
+  overflow:
+    hidden;
 }
 
 .network-page
 .node-hash span {
   display: block;
 
-  margin-bottom: 5px;
+  margin-bottom:
+    5px;
 
-  color: var(--muted);
+  color:
+    var(--muted);
 
-  font-size: 10px;
+  font-size:
+    10px;
 }
 
 .network-page
@@ -329,41 +474,43 @@
   width: 100%;
   max-width: 100%;
 
-  overflow: hidden;
+  overflow:
+    hidden;
 
-  color: #b9c6d5;
+  color:
+    #b9c6d5;
 
-  font-size: 10px;
+  font-size:
+    10px;
 
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
 }
 
-/*
- * El hash completo sigue existiendo.
- *
- * Al dejar el cursor encima se puede
- * visualizar gracias al atributo title
- * que agregamos en React.
- */
-
 /* =========================================
-   NODO DESCONECTADO
+   OFFLINE
 ========================================= */
 
 .network-page
 .node-offline-message {
-  margin-top: 22px;
+  margin-top:
+    22px;
 
-  color: var(--muted);
+  color:
+    var(--muted);
 
-  font-size: 13px;
+  font-size:
+    13px;
 
-  line-height: 1.5;
+  line-height:
+    1.5;
 }
 
 /* =========================================
-   DESCRIPCIÓN BLOCKCHAIN DISTRIBUIDA
+   DIAGRAMA / DESCRIPCIÓN
 ========================================= */
 
 .network-page
@@ -371,22 +518,33 @@
   width: 100%;
 
   display: flex;
-  align-items: center;
+  align-items:
+    center;
 
   gap: 15px;
 
-  margin-top: 28px;
+  margin-top:
+    28px;
+
   padding: 20px;
 
   border:
-    1px solid var(--border);
+    1px solid
+    var(--border);
 
-  border-radius: 11px;
+  border-radius:
+    11px;
 
   background:
-    rgba(5, 17, 30, 0.65);
+    rgba(
+      5,
+      17,
+      30,
+      0.65
+    );
 
-  color: var(--cyan);
+  color:
+    var(--cyan);
 }
 
 .network-page
@@ -394,26 +552,21 @@
   min-width: 0;
 
   display: flex;
-  flex-direction: column;
+  flex-direction:
+    column;
 
   gap: 4px;
 }
 
 .network-page
 .network-diagram span {
-  color: var(--muted);
+  color:
+    var(--muted);
 }
 
 /* =========================================
    RESPONSIVE
 ========================================= */
-
-/*
- * En resoluciones intermedias:
- *
- * NODE-1 | NODE-2
- * NODE-3
- */
 
 @media (
   max-width: 1180px
@@ -423,18 +576,13 @@
     grid-template-columns:
       repeat(
         2,
-        minmax(0, 1fr)
+        minmax(
+          0,
+          1fr
+        )
       );
   }
 }
-
-/*
- * Pantallas pequeñas:
- *
- * NODE-1
- * NODE-2
- * NODE-3
- */
 
 @media (
   max-width: 800px
@@ -442,22 +590,17 @@
   .network-page
   .nodes-grid {
     grid-template-columns:
-      minmax(0, 1fr);
-  }
-
-  .network-page
-  .node-stats {
-    grid-template-columns:
-      repeat(
-        3,
-        minmax(0, 1fr)
+      minmax(
+        0,
+        1fr
       );
   }
-}
 
-/*
- * Teléfonos muy pequeños.
- */
+  .network-header-actions {
+    width:
+      100%;
+  }
+}
 
 @media (
   max-width: 520px
